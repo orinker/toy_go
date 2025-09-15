@@ -1,6 +1,5 @@
 import math
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
@@ -16,9 +15,9 @@ class Node:
     N: int = 0
     W: float = 0.0
     Q: float = 0.0
-    children: Dict[int, "Node"] = None
+    children: dict[int, "Node"] = None
     is_expanded: bool = False
-    legal_actions: Optional[List[int]] = None
+    legal_actions: list[int] | None = None
 
     def __post_init__(self):
         if self.children is None:
@@ -42,7 +41,9 @@ class MCTS:
         self.dirichlet_eps = dirichlet_eps
         self.device = device
 
-    def run(self, root_state, num_sims: int, temperature: float = 1.0) -> Tuple[Dict[int, int], int, Node]:
+    def run(
+        self, root_state, num_sims: int, temperature: float = 1.0
+    ) -> tuple[dict[int, int], int, Node]:
         root = Node(prior=1.0, to_play=root_state.current_player())
         self._expand(root, root_state)
 
@@ -99,7 +100,10 @@ class MCTS:
         alpha = self.dirichlet_alpha
         noise = np.random.dirichlet([alpha] * len(legal))
         for a, n in zip(legal, noise):
-            root.children[a].prior = (1 - self.dirichlet_eps) * root.children[a].prior + self.dirichlet_eps * float(n)
+            root.children[a].prior = (
+                (1 - self.dirichlet_eps) * root.children[a].prior
+                + self.dirichlet_eps * float(n)
+            )
 
     def _select_action(self, node: Node) -> int:
         total_N = max(1, sum(child.N for child in node.children.values()))
@@ -115,8 +119,8 @@ class MCTS:
         self,
         node: Node,
         state,
-        prior_over_actions: Optional[np.ndarray] = None,
-        legal_actions: Optional[List[int]] = None,
+        prior_over_actions: np.ndarray | None = None,
+        legal_actions: list[int] | None = None,
     ):
         if node.is_expanded:
             return
@@ -130,11 +134,14 @@ class MCTS:
 
         for a in legal_actions:
             if a not in node.children:
-                node.children[a] = Node(prior=float(prior_over_actions[a]), to_play=1 - node.to_play)
+                node.children[a] = Node(
+                    prior=float(prior_over_actions[a]),
+                    to_play=1 - node.to_play,
+                )
         node.is_expanded = True
 
     @staticmethod
-    def _sample_action_from_counts(counts: Dict[int, int], temperature: float) -> int:
+    def _sample_action_from_counts(counts: dict[int, int], temperature: float) -> int:
         if temperature <= 1e-6:
             return max(counts.items(), key=lambda kv: kv[1])[0]
         vs = np.array(list(counts.values()), dtype=np.float64)
@@ -145,4 +152,3 @@ class MCTS:
         else:
             probs = exps / exps.sum()
         return int(np.random.choice(ks, p=probs))
-

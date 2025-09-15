@@ -3,9 +3,9 @@ Thin CLI wrapper for the AlphaZero 9x9 Go prototype.
 Actual implementation lives in src/az_go/* modules.
 """
 
+import argparse
 import os
 import sys
-import argparse
 
 # Ensure src/ is importable without installing the package
 CURRENT_DIR = os.path.dirname(__file__)
@@ -13,12 +13,6 @@ SRC_DIR = os.path.join(CURRENT_DIR, "src")
 if SRC_DIR not in sys.path:
     sys.path.insert(0, SRC_DIR)
 
-from az_go.utils import (
-    infer_board_size_from_num_actions,
-    a_to_rc,
-    rc_to_a,
-    pass_action,
-)
 
 
 def _run_train(args):

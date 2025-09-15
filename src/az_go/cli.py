@@ -75,12 +75,13 @@ def main_play(args):
         tau = 1.0 if ply < args.temp_moves else 1e-6
         counts, action, _ = mcts.run(state, num_sims=args.mcts_sims, temperature=tau)
         r, c = a_to_rc(action, 9) if action != pass_action(9) else ("pass", "pass")
+        visits = sum(counts.values())
         print(
-            f"Ply {ply:02d} | player={state.current_player()} | action={action} ({r},{c}) | visits={sum(counts.values())}"
+            f"Ply {ply:02d} | player={state.current_player()} "
+            f"| action={action} ({r},{c}) | visits={visits}"
         )
         state.apply_action(action)
         ply += 1
 
     ret = state.returns()
     print("Final returns [black, white]:", ret, "=> winner:", "Black" if ret[0] > 0 else "White")
-

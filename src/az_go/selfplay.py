@@ -1,13 +1,10 @@
 from collections import deque, namedtuple
-from typing import Dict, List, Tuple
 
 import numpy as np
 
 from .game import obs_to_planes
 from .mcts import MCTS
 from .net import AZNet
-from .utils import infer_board_size_from_num_actions
-
 
 Sample = namedtuple("Sample", ["planes", "pi", "z"])
 
@@ -19,7 +16,7 @@ class ReplayBuffer:
     def push(self, s: Sample):
         self.buf.append(s)
 
-    def sample(self, batch_size: int) -> List[Sample]:
+    def sample(self, batch_size: int) -> list[Sample]:
         idx = np.random.choice(len(self.buf), size=batch_size, replace=False)
         return [self.buf[i] for i in idx]
 
@@ -27,7 +24,9 @@ class ReplayBuffer:
         return len(self.buf)
 
 
-def mcts_policy_from_counts(counts: Dict[int, int], num_actions: int, temperature: float) -> np.ndarray:
+def mcts_policy_from_counts(
+    counts: dict[int, int], num_actions: int, temperature: float
+) -> np.ndarray:
     pi = np.zeros(num_actions, dtype=np.float32)
     for a, n in counts.items():
         pi[a] = n
@@ -46,13 +45,13 @@ def mcts_policy_from_counts(counts: Dict[int, int], num_actions: int, temperatur
 
 def play_one_selfplay_game(
     game, net: AZNet, mcts_sims: int, temp_moves: int, device: str = "cpu"
-) -> List[Sample]:
+) -> list[Sample]:
     """Plays one self-play game using MCTS-guided moves."""
     state = game.new_initial_state()
-    N = infer_board_size_from_num_actions(game.num_distinct_actions())
+    # Board size not needed here, keep minimal
     mcts = MCTS(game, net, device=device)
 
-    traj: List[Tuple[np.ndarray, np.ndarray, int]] = []  # (planes, pi, current_player)
+    traj: list[tuple[np.ndarray, np.ndarray, int]] = []  # (planes, pi, current_player)
     ply = 0
     while not state.is_terminal():
         tau = 1.0 if ply < temp_moves else 1e-6
@@ -66,9 +65,8 @@ def play_one_selfplay_game(
         ply += 1
 
     final_black = state.returns()[0]  # +1 black win, -1 black loss (zero-sum)
-    samples: List[Sample] = []
+    samples: list[Sample] = []
     for planes, pi, cur in traj:
         z = final_black if cur == 0 else -final_black
         samples.append(Sample(planes=planes, pi=pi, z=float(z)))
     return samples
-

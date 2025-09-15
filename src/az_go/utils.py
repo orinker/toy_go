@@ -1,5 +1,4 @@
 import math
-from typing import Tuple
 
 
 def infer_board_size_from_num_actions(num_actions: int) -> int:
@@ -12,7 +11,7 @@ def infer_board_size_from_num_actions(num_actions: int) -> int:
     return n
 
 
-def a_to_rc(a: int, N: int) -> Tuple[int, int]:
+def a_to_rc(a: int, N: int) -> tuple[int, int]:
     return (a // N, a % N)
 
 

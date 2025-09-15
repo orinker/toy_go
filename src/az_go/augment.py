@@ -1,4 +1,3 @@
-from typing import List
 
 import numpy as np
 
@@ -25,7 +24,7 @@ def rotate_flip_policy(pi: np.ndarray, N: int, k_rot: int, flip: bool) -> np.nda
     return out_pi
 
 
-def augment_batch(batch: List[Sample], N: int) -> List[Sample]:
+def augment_batch(batch: list[Sample], N: int) -> list[Sample]:
     aug = []
     for s in batch:
         k = np.random.randint(0, 4)

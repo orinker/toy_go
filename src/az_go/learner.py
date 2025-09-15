@@ -1,4 +1,3 @@
-from typing import Dict, List
 
 import numpy as np
 import torch
@@ -14,10 +13,12 @@ class AZLearner:
         self.opt = torch.optim.Adam(self.net.parameters(), lr=lr, weight_decay=weight_decay)
         self.device = device
 
-    def train_step(self, batch: List[Sample]) -> Dict[str, float]:
+    def train_step(self, batch: list[Sample]) -> dict[str, float]:
         x = torch.from_numpy(np.stack([s.planes for s in batch], axis=0)).to(self.device)
         target_pi = torch.from_numpy(np.stack([s.pi for s in batch], axis=0)).to(self.device)
-        target_v = torch.from_numpy(np.array([s.z for s in batch], dtype=np.float32)).to(self.device)
+        target_v = torch.from_numpy(
+            np.array([s.z for s in batch], dtype=np.float32)
+        ).to(self.device)
 
         logits, v = self.net(x)
         v = v.squeeze(1)
@@ -39,4 +40,3 @@ class AZLearner:
             "value_loss": float(value_loss.item()),
             "entropy": float(entropy),
         }
-

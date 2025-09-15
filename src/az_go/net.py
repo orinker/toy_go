@@ -1,4 +1,3 @@
-from typing import Tuple
 
 import torch
 import torch.nn as nn
@@ -51,7 +50,7 @@ class AZNet(nn.Module):
         self.v_fc1 = nn.Linear(1 * self.N * self.N, 128)
         self.v_fc2 = nn.Linear(128, 1)
 
-    def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         h = self.torso(self.stem(x))
 
         p = self.p_head(h)
