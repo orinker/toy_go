@@ -34,3 +34,4 @@ checkpoints/
 *.pt
 go9_az.pt
 
+.vscode/**
