@@ -1,9 +1,16 @@
 # Repository Guidelines
 
-This repo contains a minimal AlphaZero-style 9x9 Go implementation using OpenSpiel (`pyspiel`) and PyTorch. The entry point is `main.py`, which exposes `train` and `play` subcommands.
+This repo contains a minimal AlphaZero-style 9x9 Go implementation using OpenSpiel (`pyspiel`) and PyTorch. The entry point is `main.py` (root), which wires CLI to modules under `src/az_go`.
 
 ## Project Structure & Module Organization
-- `main.py` — model (ResNet), MCTS, self-play, training loop, CLI.
+- `main.py` — thin CLI wrapper (`train`/`play`).
+- `src/az_go/` — implementation modules:
+  - `game.py` (OpenSpiel glue, observations)
+  - `net.py` (ResNet policy/value)
+  - `mcts.py` (PUCT + root noise)
+  - `selfplay.py` (replay buffer, self-play loop)
+  - `learner.py` (training step)
+  - `augment.py` (symmetry transforms)
 - `checkpoints/` — saved models (create as needed), e.g., `checkpoints/go9_az.pt`.
 - `tests/` — Python tests (optional; add as project grows).
 
@@ -34,4 +41,3 @@ This repo contains a minimal AlphaZero-style 9x9 Go implementation using OpenSpi
 - Do not commit large artifacts; add `checkpoints/*.pt` to `.gitignore`.
 - Verify `pyspiel` installation matches your Python/CUDA toolchain; check GPU with `python -c "import torch; print(torch.cuda.is_available())"`.
 - Repro notes: consider fixing seeds and recording CLI flags when sharing results.
-
