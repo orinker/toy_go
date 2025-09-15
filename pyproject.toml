@@ -1,0 +1,31 @@
+[project]
+name = "toy-go"
+version = "0.1.0"
+description = "Minimal AlphaZero 9x9 Go using OpenSpiel + PyTorch"
+requires-python = ">=3.10"
+dependencies = [
+  "open_spiel",
+  "torch",
+  "numpy",
+]
+
+[project.optional-dependencies]
+dev = [
+  "black>=23.0",
+  "ruff>=0.4.0",
+  "pytest>=7.0",
+  "pytest-cov>=4.0",
+]
+
+[tool.black]
+line-length = 100
+target-version = ["py310"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+select = ["E", "F", "I", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
