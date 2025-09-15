@@ -21,6 +21,18 @@ This repo contains a minimal AlphaZero-style 9x9 Go implementation using OpenSpi
 - Quick play: `python3 main.py play --mcts_sims 200 --ckpt checkpoints/go9_az.pt`
 - Force CPU: append `--cpu`; CUDA is auto-detected otherwise.
 
+## Linting (Ruff)
+- Default linter: `ruff` with rules `E`, `F`, `I`, `UP` (configured in `pyproject.toml`).
+- Quick check: `ruff check .` (auto-fix trivial issues with `ruff check . --fix`).
+- Formatting: `black .` (line length 100).
+
+### Agent requirements (important)
+- Before submitting patches, always run: `ruff check .` and ensure no new `E`/`F` errors.
+- Prefer `--fix` for safe autofixes (imports/order, pyupgrade) and keep changes minimal.
+- If ruff flags issues in files you touched, fix them in the same patch when small and safe.
+- Do not refactor unrelated modules just to appease style; only fix correctness-level issues (`E*`, `F*`) outside your scope.
+- In CI and pre-commit, ruff must pass for PRs to be considered "clean".
+
 ## Coding Style & Naming Conventions
 - Python, 4-space indentation, type hints where helpful.
 - Naming: functions/variables `snake_case`; classes `CapWords`; constants `UPPER_SNAKE_CASE`.
