@@ -1,10 +1,10 @@
 # Repository Guidelines
 
-This repo contains a minimal AlphaZero-style 9x9 Go implementation using OpenSpiel (`pyspiel`) and PyTorch. The entry point is `main.py` (root), which wires CLI to modules under `src/az_go`.
+This repo contains a minimal AlphaZero-style 9x9 Go implementation using OpenSpiel (`pyspiel`) and PyTorch. The entry point is `main.py` (root), which wires CLI to modules under `src/toy_go`.
 
 ## Project Structure & Module Organization
 - `main.py` — thin CLI wrapper (`train`/`play`).
-- `src/az_go/` — implementation modules:
+- `src/toy_go/` — implementation modules:
   - `game.py` (OpenSpiel glue, observations)
   - `net.py` (ResNet policy/value)
   - `mcts.py` (PUCT + root noise)

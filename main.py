@@ -1,6 +1,6 @@
 """
 Thin CLI wrapper for the AlphaZero 9x9 Go prototype.
-Actual implementation lives in src/az_go/* modules.
+Actual implementation lives in src/toy_go/* modules.
 """
 
 import argparse
@@ -17,13 +17,13 @@ if SRC_DIR not in sys.path:
 
 def _run_train(args):
     # Lazy import to avoid heavy deps at import time (e.g., torch, pyspiel)
-    from az_go.cli import main_train as _main_train
+    from toy_go.cli import main_train as _main_train
 
     _main_train(args)
 
 
 def _run_play(args):
-    from az_go.cli import main_play as _main_play
+    from toy_go.cli import main_play as _main_play
 
     _main_play(args)
 
