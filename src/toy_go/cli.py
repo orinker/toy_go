@@ -12,7 +12,8 @@ from .utils import a_to_rc, pass_action
 def main_train(args):
     device = "cuda" if torch.cuda.is_available() and not args.cpu else "cpu"
     board_size = args.board_size
-    game = load_go_game(board_size=board_size, komi=7.5)
+    komi = args.komi
+    game = load_go_game(board_size=board_size, komi=komi)
     C, H, W = game.observation_tensor_shape()
     if H != board_size or W != board_size:
         raise ValueError(
@@ -73,7 +74,8 @@ def main_train(args):
 def main_play(args):
     device = "cuda" if torch.cuda.is_available() and not args.cpu else "cpu"
     board_size = args.board_size
-    game = load_go_game(board_size=board_size, komi=7.5)
+    komi = args.komi
+    game = load_go_game(board_size=board_size, komi=komi)
     C, H, W = game.observation_tensor_shape()
     if H != board_size or W != board_size:
         raise ValueError(
