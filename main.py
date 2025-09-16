@@ -28,6 +28,12 @@ def _run_play(args):
     _main_play(args)
 
 
+def _run_visualize(args):
+    from toy_go.visualize import main_visualize as _main_visualize
+
+    _main_visualize(args)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -57,6 +63,14 @@ def build_parser() -> argparse.ArgumentParser:
     p_play.add_argument("--ckpt", type=str, default="go9_az.pt")
     p_play.add_argument("--cpu", action="store_true")
     p_play.set_defaults(func=_run_play)
+
+    p_visualize = sub.add_parser("visualize")
+    p_visualize.add_argument("--mcts_sims", type=int, default=100)
+    p_visualize.add_argument("--channels", type=int, default=32)
+    p_visualize.add_argument("--blocks", type=int, default=3)
+    p_visualize.add_argument("--ckpt", type=str, default="checkpoints/1k_go9_az.pt")
+    p_visualize.add_argument("--cpu", action="store_true")
+    p_visualize.set_defaults(func=_run_visualize)
 
     return parser
 
