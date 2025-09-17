@@ -132,7 +132,7 @@ def main_play(args):
     net.eval()
 
     state = game.new_initial_state()
-    mcts = MCTS(game, net, device=device)
+    mcts = MCTS(game, net, device=device, dirichlet_eps=0.0)
 
     print("Starting a quick self-play (greedy after first moves):")
     ply = 0
@@ -150,6 +150,7 @@ def main_play(args):
             f"| action={action} ({r},{c}) | visits={visits}"
         )
         state.apply_action(action)
+        mcts.advance(action)
         ply += 1
 
     ret = state.returns()

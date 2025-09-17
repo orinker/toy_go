@@ -18,6 +18,7 @@ class Node:
     children: dict[int, "Node"] = None
     is_expanded: bool = False
     legal_actions: list[int] | None = None
+    noise_applied: bool = False
 
     def __post_init__(self):
         if self.children is None:
@@ -40,60 +41,85 @@ class MCTS:
         self.dirichlet_alpha = dirichlet_alpha
         self.dirichlet_eps = dirichlet_eps
         self.device = device
+        self.reset()
 
     def run(
         self, root_state, num_sims: int, temperature: float = 1.0
     ) -> tuple[dict[int, int], int, Node]:
-        root = Node(prior=1.0, to_play=root_state.current_player())
-        self._expand(root, root_state)
+        root = self._ensure_root(root_state)
+        if root_state.is_terminal():
+            return {}, -1, root
 
-        self._add_root_noise(root)
+        was_training = self.net.training
+        if was_training:
+            self.net.eval()
 
-        for _ in range(num_sims):
-            state = root_state.clone()
-            path = [root]
-            node = root
+        try:
+            if not root.is_expanded:
+                self._evaluate_and_expand(root, root_state)
 
-            # Selection
-            while node.is_expanded and not state.is_terminal():
-                a = self._select_action(node)
-                state.apply_action(a)
-                if a not in node.children:
-                    node.children[a] = Node(prior=1e-8, to_play=1 - node.to_play)
-                node = node.children[a]
-                path.append(node)
+            self._add_root_noise(root)
 
-            # Evaluate/Expand
-            if state.is_terminal():
-                black_final = state.returns()[0]
-                leaf_value = black_final if node.to_play == 0 else -black_final
-            else:
-                planes = obs_to_planes(self.game, state)
-                x = torch.from_numpy(planes[None, ...]).to(self.device)
-                with torch.no_grad():
-                    logits, v = self.net(x)
-                    v = float(v.item())
-                    policy = logits.squeeze(0).cpu().numpy()
-                legal = state.legal_actions()
-                mask = np.full(self.net.num_actions, -1e9, dtype=np.float32)
-                mask[legal] = policy[legal]
-                probs = np.exp(mask - mask.max())
-                probs = probs / probs.sum()
-                self._expand(node, state, prior_over_actions=probs, legal_actions=legal)
-                leaf_value = v
+            for _ in range(num_sims):
+                state = root_state.clone()
+                path = [root]
+                node = root
 
-            # Backup
-            for n in reversed(path):
-                n.N += 1
-                n.W += leaf_value
-                n.Q = n.W / n.N
-                leaf_value = -leaf_value
+                # Selection
+                while node.is_expanded and not state.is_terminal():
+                    a = self._select_action(node)
+                    state.apply_action(a)
+                    if a not in node.children:
+                        node.children[a] = Node(prior=1e-8, to_play=1 - node.to_play)
+                    node = node.children[a]
+                    path.append(node)
 
-        counts = {a: child.N for a, child in root.children.items()}
-        chosen = self._sample_action_from_counts(counts, temperature)
-        return counts, chosen, root
+                # Evaluate/Expand
+                if state.is_terminal():
+                    black_final = state.returns()[0]
+                    leaf_value = black_final if node.to_play == 0 else -black_final
+                else:
+                    leaf_value = self._evaluate_and_expand(node, state)
+
+                # Backup
+                for n in reversed(path):
+                    n.N += 1
+                    n.W += leaf_value
+                    n.Q = n.W / n.N
+                    leaf_value = -leaf_value
+
+            counts = {a: child.N for a, child in root.children.items()}
+            chosen = self._sample_action_from_counts(counts, temperature)
+            return counts, chosen, root
+        finally:
+            if was_training:
+                self.net.train()
+
+    def reset(self):
+        self.root: Node | None = None
+        self.root_history: tuple[int, ...] = ()
+
+    def advance(self, action: int):
+        if self.root is None:
+            return
+        child = self.root.children.get(action)
+        if child is None:
+            self.reset()
+            return
+        self.root = child
+        self.root_history = self.root_history + (action,)
+        self.root.noise_applied = False
+
+    def _ensure_root(self, state) -> Node:
+        history = tuple(state.history())
+        if self.root is None or self.root_history != history:
+            self.root = Node(prior=1.0, to_play=state.current_player())
+            self.root_history = history
+        return self.root
 
     def _add_root_noise(self, root: Node):
+        if self.dirichlet_eps <= 0 or root.noise_applied:
+            return
         legal = root.legal_actions
         if not legal:
             return
@@ -104,6 +130,7 @@ class MCTS:
                 (1 - self.dirichlet_eps) * root.children[a].prior
                 + self.dirichlet_eps * float(n)
             )
+        root.noise_applied = True
 
     def _select_action(self, node: Node) -> int:
         total_N = max(1, sum(child.N for child in node.children.values()))
@@ -139,6 +166,31 @@ class MCTS:
                     to_play=1 - node.to_play,
                 )
         node.is_expanded = True
+
+    def _evaluate_and_expand(self, node: Node, state) -> float:
+        value, probs, legal = self._policy_value(state)
+        self._expand(node, state, prior_over_actions=probs, legal_actions=legal)
+        return value
+
+    def _policy_value(self, state) -> tuple[float, np.ndarray, list[int]]:
+        planes = obs_to_planes(self.game, state)
+        x = torch.from_numpy(planes[None, ...]).to(self.device)
+        with torch.no_grad():
+            logits, value = self.net(x)
+        policy_logits = logits.squeeze(0).cpu().numpy()
+        value = float(value.item())
+        legal = state.legal_actions()
+        probs = np.zeros(self.net.num_actions, dtype=np.float32)
+        if legal:
+            legal_logits = policy_logits[legal]
+            legal_logits = legal_logits - legal_logits.max()
+            exp_logits = np.exp(legal_logits, dtype=np.float64)
+            total = exp_logits.sum()
+            if total <= 0:
+                probs[legal] = 1.0 / len(legal)
+            else:
+                probs[legal] = (exp_logits / total).astype(np.float32)
+        return value, probs, legal
 
     @staticmethod
     def _sample_action_from_counts(counts: dict[int, int], temperature: float) -> int:

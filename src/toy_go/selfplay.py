@@ -62,6 +62,7 @@ def play_one_selfplay_game(
         traj.append((planes.copy(), pi.copy(), state.current_player()))
 
         state.apply_action(action)
+        mcts.advance(action)
         ply += 1
 
     final_black = state.returns()[0]  # +1 black win, -1 black loss (zero-sum)

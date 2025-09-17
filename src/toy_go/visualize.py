@@ -40,7 +40,7 @@ class GoVisualizer:
         self.stone_radius = stone_radius
         self.device = device
         self.mcts_sims = mcts_sims
-        self.mcts = MCTS(game, net, device=device)
+        self.mcts = MCTS(game, net, device=device, dirichlet_eps=0.0)
 
         pygame.init()
         self.width = self.board_size * self.cell_size + 2 * self.board_margin + 300
@@ -220,6 +220,7 @@ class GoVisualizer:
 
         self.move_history.append(action)
         self.state.apply_action(action)
+        self.mcts.advance(action)
 
         if self.state.is_terminal():
             self.game_over = True
@@ -229,7 +230,7 @@ class GoVisualizer:
         self.state = self.game.new_initial_state()
         self.move_history = []
         self.game_over = False
-        self.mcts = MCTS(self.game, self.net, device=self.device)
+        self.mcts = MCTS(self.game, self.net, device=self.device, dirichlet_eps=0.0)
 
     def run(self):
         """Main game loop."""
