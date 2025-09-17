@@ -184,7 +184,7 @@ class MCTS:
         if legal:
             legal_logits = policy_logits[legal]
             legal_logits = legal_logits - legal_logits.max()
-            exp_logits = np.exp(legal_logits, dtype=np.float64)
+            exp_logits = np.exp(legal_logits.astype(np.float64))
             total = exp_logits.sum()
             if total <= 0:
                 probs[legal] = 1.0 / len(legal)

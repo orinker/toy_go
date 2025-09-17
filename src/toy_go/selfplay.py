@@ -65,9 +65,10 @@ def play_one_selfplay_game(
         mcts.advance(action)
         ply += 1
 
-    final_black = state.returns()[0]  # +1 black win, -1 black loss (zero-sum)
+    final_black = state.returns()[0]
+    result = float(np.sign(final_black))  # map score difference to win/loss signal
     samples: list[Sample] = []
     for planes, pi, cur in traj:
-        z = final_black if cur == 0 else -final_black
+        z = result if cur == 0 else -result
         samples.append(Sample(planes=planes, pi=pi, z=float(z)))
     return samples
