@@ -55,6 +55,12 @@ def build_parser() -> argparse.ArgumentParser:
     p_train.add_argument("--augment", action="store_true")
     p_train.add_argument("--ckpt", type=str, default="go9_az.pt")
     p_train.add_argument("--cpu", action="store_true")
+    p_train.add_argument(
+        "--continue",
+        dest="resume",
+        action="store_true",
+        help="Continue training from an existing checkpoint",
+    )
     p_train.set_defaults(func=_run_train)
 
     p_play = sub.add_parser("play")

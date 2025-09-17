@@ -1,4 +1,6 @@
 
+from pathlib import Path
+
 import pygame
 import torch
 
@@ -282,7 +284,14 @@ def main_visualize(args):
         in_planes=C, board_size=board_size, channels=args.channels, blocks=args.blocks
     ).to(device)
     if args.ckpt:
-        net.load_state_dict(torch.load(args.ckpt, map_location=device))
+        ckpt_path = Path(args.ckpt).expanduser()
+        if not ckpt_path.exists():
+            raise FileNotFoundError(f"Checkpoint not found: {ckpt_path}")
+        payload = torch.load(ckpt_path, map_location=device)
+        if isinstance(payload, dict) and "model" in payload:
+            net.load_state_dict(payload["model"])
+        else:
+            net.load_state_dict(payload)
     net.eval()
 
     visualizer = GoVisualizer(net, game, board_size, device, args.mcts_sims)

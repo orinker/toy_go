@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import torch
 
 from .augment import augment_batch
@@ -7,6 +9,24 @@ from .mcts import MCTS
 from .net import AZNet
 from .selfplay import ReplayBuffer, play_one_selfplay_game
 from .utils import a_to_rc, pass_action
+
+
+def _load_model_state(net: AZNet, ckpt_path: Path, device: str):
+    payload = torch.load(ckpt_path, map_location=device)
+    if isinstance(payload, dict) and "model" in payload:
+        net_state = payload["model"]
+        opt_state = payload.get("optimizer")
+    else:
+        net_state = payload
+        opt_state = None
+    net.load_state_dict(net_state)
+    return opt_state
+
+
+def _load_training_checkpoint(net: AZNet, learner: AZLearner, ckpt_path: Path, device: str) -> None:
+    opt_state = _load_model_state(net, ckpt_path, device)
+    if opt_state is not None:
+        learner.opt.load_state_dict(opt_state)
 
 
 def main_train(args):
@@ -25,6 +45,15 @@ def main_train(args):
     ).to(device)
     learner = AZLearner(net, lr=args.lr, weight_decay=args.wd, device=device)
     rb = ReplayBuffer(capacity=args.buffer)
+
+    ckpt_path = Path(args.ckpt).expanduser() if args.ckpt else None
+    if args.resume:
+        if ckpt_path is None:
+            raise ValueError("--continue requires --ckpt to point to an existing checkpoint")
+        if not ckpt_path.exists():
+            raise FileNotFoundError(f"Checkpoint not found: {ckpt_path}")
+        _load_training_checkpoint(net, learner, ckpt_path, device)
+        print(f"Loaded checkpoint from {ckpt_path}")
 
     print("Starting self-play + training...")
     total_games = 0
@@ -65,10 +94,21 @@ def main_train(args):
                 f"| p={logs['policy_loss']:.3f} v={logs['value_loss']:.3f} H={logs['entropy']:.2f}"
             )
 
-        if args.ckpt:
-            torch.save(net.state_dict(), args.ckpt)
+        if ckpt_path is not None:
+            if not ckpt_path.parent.exists():
+                ckpt_path.parent.mkdir(parents=True, exist_ok=True)
+            torch.save(
+                {
+                    "model": net.state_dict(),
+                    "optimizer": learner.opt.state_dict(),
+                },
+                str(ckpt_path),
+            )
 
-    print("Done. Model saved to:", args.ckpt)
+    if ckpt_path is not None:
+        print("Done. Model saved to:", ckpt_path)
+    else:
+        print("Done.")
 
 
 def main_play(args):
@@ -85,7 +125,10 @@ def main_play(args):
         in_planes=C, board_size=board_size, channels=args.channels, blocks=args.blocks
     ).to(device)
     if args.ckpt:
-        net.load_state_dict(torch.load(args.ckpt, map_location=device))
+        ckpt_path = Path(args.ckpt).expanduser()
+        if not ckpt_path.exists():
+            raise FileNotFoundError(f"Checkpoint not found: {ckpt_path}")
+        _load_model_state(net, ckpt_path, device)
     net.eval()
 
     state = game.new_initial_state()
