@@ -156,13 +156,34 @@ class GoVisualizer:
 
         if self.game_over:
             returns = self.state.returns()
-            winner = "Black" if returns[0] > 0 else "White"
-            result_text = self.font.render(f"Winner: {winner}", True, self.TEXT_COLOR)
-            self.screen.blit(result_text, (info_x, 100))
-            score_text = self.small_font.render(f"Score: B{returns[0]:.1f}", True, self.TEXT_COLOR)
-            self.screen.blit(score_text, (info_x, 130))
+            black_score = returns[0]
+            white_score = returns[1]
 
-        y_offset = 200
+            # Determine winner
+            if black_score > 0:
+                winner = "Black"
+                winner_color = self.BLACK_STONE
+            else:
+                winner = "White"
+                winner_color = self.WHITE_STONE
+
+            # Display winner with larger font
+            result_text = self.font.render(f"Winner: {winner}", True, winner_color)
+            self.screen.blit(result_text, (info_x, 100))
+
+            # Display individual scores
+            black_score_text = self.font.render(f"Black: {black_score:.1f}", True, self.TEXT_COLOR)
+            self.screen.blit(black_score_text, (info_x, 130))
+
+            white_score_text = self.font.render(f"White: {white_score:.1f}", True, self.TEXT_COLOR)
+            self.screen.blit(white_score_text, (info_x, 155))
+
+            # Display score difference
+            diff = abs(black_score)
+            diff_text = self.small_font.render(f"Margin: {diff:.1f} points", True, self.TEXT_COLOR)
+            self.screen.blit(diff_text, (info_x, 180))
+
+        y_offset = 220
         controls = [
             "Controls:",
             "SPACE - Pause/Resume",
