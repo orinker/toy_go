@@ -34,6 +34,12 @@ def _run_visualize(args):
     _main_visualize(args)
 
 
+def _run_pvc(args):
+    from toy_go.pvc import main_pvc as _main_pvc
+
+    _main_pvc(args)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -83,6 +89,16 @@ def build_parser() -> argparse.ArgumentParser:
     p_visualize.add_argument("--ckpt", type=str, default="checkpoints/1k_go9_az.pt")
     p_visualize.add_argument("--cpu", action="store_true")
     p_visualize.set_defaults(func=_run_visualize)
+
+    p_pvc = sub.add_parser("pvc")
+    p_pvc.add_argument("--mcts_sims", type=int, default=200)
+    p_pvc.add_argument("--channels", type=int, default=64)
+    p_pvc.add_argument("--blocks", type=int, default=6)
+    p_pvc.add_argument("--board_size", type=int, default=9)
+    p_pvc.add_argument("--komi", type=float, default=2.5)
+    p_pvc.add_argument("--ckpt", type=str, default="go9_az.pt")
+    p_pvc.add_argument("--cpu", action="store_true")
+    p_pvc.set_defaults(func=_run_pvc)
 
     return parser
 

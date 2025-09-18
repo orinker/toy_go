@@ -1,4 +1,5 @@
 
+import math
 from pathlib import Path
 
 import pygame
@@ -31,6 +32,7 @@ class GoVisualizer:
         cell_size: int = 60,
         board_margin: int = 40,
         stone_radius: int = 25,
+        komi: float = 2.5,
     ):
         self.net = net
         self.game = game
@@ -41,6 +43,7 @@ class GoVisualizer:
         self.device = device
         self.mcts_sims = mcts_sims
         self.mcts = MCTS(game, net, device=device, dirichlet_eps=0.0)
+        self.komi = komi
 
         pygame.init()
         self.width = self.board_size * self.cell_size + 2 * self.board_margin + 300
@@ -58,6 +61,16 @@ class GoVisualizer:
         self.game_over = False
         self.auto_play_delay = 1000
         self.last_move_time = 0
+        self.last_win_rates: tuple[float, float] | None = None
+        self.temp_moves = 10
+        self.controls_help: list[str] = [
+            "Controls:",
+            "SPACE - Pause/Resume",
+            "R - Reset game",
+            "Q - Quit",
+            "↑/↓ - Adjust speed",
+        ]
+        self.show_delay = True
 
     def grid_to_pixel(self, row: int, col: int) -> tuple[int, int]:
         """Convert board coordinates to pixel coordinates."""
@@ -156,10 +169,25 @@ class GoVisualizer:
         player_text = self.font.render(f"To play: {player}", True, self.TEXT_COLOR)
         self.screen.blit(player_text, (info_x, 70))
 
+        if self.last_win_rates is not None:
+            black_wr, white_wr = self.last_win_rates
+            black_wr_text = self.small_font.render(
+                f"Black win%: {black_wr * 100:.1f}", True, self.TEXT_COLOR
+            )
+            white_wr_text = self.small_font.render(
+                f"White win%: {white_wr * 100:.1f}", True, self.TEXT_COLOR
+            )
+            self.screen.blit(black_wr_text, (info_x, 100))
+            self.screen.blit(white_wr_text, (info_x, 125))
+            y_offset = 160
+        else:
+            y_offset = 100
+
         if self.game_over:
             returns = self.state.returns()
             black_score = returns[0]
             white_score = returns[1]
+            raw_black, raw_white = self._final_raw_scores()
 
             # Determine winner
             if black_score > 0:
@@ -171,43 +199,105 @@ class GoVisualizer:
 
             # Display winner with larger font
             result_text = self.font.render(f"Winner: {winner}", True, winner_color)
-            self.screen.blit(result_text, (info_x, 100))
+            self.screen.blit(result_text, (info_x, y_offset))
+            y_offset += 35
 
             # Display individual scores
-            black_score_text = self.font.render(f"Black: {black_score:.1f}", True, self.TEXT_COLOR)
-            self.screen.blit(black_score_text, (info_x, 130))
+            black_score_text = self.font.render(
+                f"Black (with komi): {black_score:.1f}", True, self.TEXT_COLOR
+            )
+            self.screen.blit(black_score_text, (info_x, y_offset))
+            y_offset += 30
 
-            white_score_text = self.font.render(f"White: {white_score:.1f}", True, self.TEXT_COLOR)
-            self.screen.blit(white_score_text, (info_x, 155))
+            white_score_text = self.font.render(
+                f"White (with komi): {white_score:.1f}", True, self.TEXT_COLOR
+            )
+            self.screen.blit(white_score_text, (info_x, y_offset))
+            y_offset += 30
+
+            raw_black_text = self.small_font.render(
+                f"Black raw: {raw_black:.1f}", True, self.TEXT_COLOR
+            )
+            self.screen.blit(raw_black_text, (info_x, y_offset))
+            y_offset += 25
+
+            raw_white_text = self.small_font.render(
+                f"White raw: {raw_white:.1f}", True, self.TEXT_COLOR
+            )
+            self.screen.blit(raw_white_text, (info_x, y_offset))
+            y_offset += 25
 
             # Display score difference
             diff = abs(black_score)
-            diff_text = self.small_font.render(f"Margin: {diff:.1f} points", True, self.TEXT_COLOR)
-            self.screen.blit(diff_text, (info_x, 180))
+            diff_text = self.small_font.render(
+                f"Margin (with komi): {diff:.1f}", True, self.TEXT_COLOR
+            )
+            self.screen.blit(diff_text, (info_x, y_offset))
+            y_offset += 30
 
-        y_offset = 220
-        controls = [
-            "Controls:",
-            "SPACE - Pause/Resume",
-            "R - Reset game",
-            "Q - Quit",
-            "↑/↓ - Adjust speed"
-        ]
-        for text in controls:
+        if y_offset < 220:
+            y_offset = 220
+        for text in self.controls_help:
             control_text = self.small_font.render(text, True, self.TEXT_COLOR)
             self.screen.blit(control_text, (info_x, y_offset))
             y_offset += 25
 
-        status = "PAUSED" if self.paused else "PLAYING"
-        if self.game_over:
-            status = "GAME OVER"
-        status_text = self.font.render(status, True, self.TEXT_COLOR)
+        status_text = self.font.render(self._status_text(), True, self.TEXT_COLOR)
         self.screen.blit(status_text, (info_x, y_offset + 20))
 
-        speed_text = self.small_font.render(
-            f"Delay: {self.auto_play_delay}ms", True, self.TEXT_COLOR
-        )
-        self.screen.blit(speed_text, (info_x, y_offset + 50))
+        if self.show_delay:
+            speed_text = self.small_font.render(
+                f"Delay: {self.auto_play_delay}ms", True, self.TEXT_COLOR
+            )
+            self.screen.blit(speed_text, (info_x, y_offset + 50))
+
+    def _status_text(self) -> str:
+        if self.game_over:
+            return "GAME OVER"
+        return "PAUSED" if self.paused else "PLAYING"
+
+    def _compute_win_rates(self, root) -> tuple[float, float]:
+        if root is None or root.N == 0 or not math.isfinite(root.Q):
+            return 0.5, 0.5
+        value = float(max(min(root.Q, 1.0), -1.0))
+        prob_current = 0.5 * (value + 1.0)
+        prob_current = min(max(prob_current, 0.0), 1.0)
+        if root.to_play == 0:
+            return prob_current, 1.0 - prob_current
+        return 1.0 - prob_current, prob_current
+
+    def _final_raw_scores(self) -> tuple[float, float]:
+        returns = self.state.returns()
+        raw_scores: tuple[float, float] | None = None
+
+        score_fn = getattr(self.state, "score", None)
+        if callable(score_fn):
+            try:
+                raw_scores = (float(score_fn(0)), float(score_fn(1)))
+            except TypeError:
+                try:
+                    raw_value = float(score_fn())
+                    raw_scores = (raw_value, -raw_value)
+                except Exception:
+                    raw_scores = None
+
+        if raw_scores is None:
+            scores_fn = getattr(self.state, "scores", None)
+            if callable(scores_fn):
+                try:
+                    values = scores_fn()
+                    if len(values) >= 2:
+                        raw_scores = (float(values[0]), float(values[1]))
+                except Exception:
+                    raw_scores = None
+
+        if raw_scores is None:
+            raw_diff = float(returns[0])
+            if getattr(self, "komi", None):
+                raw_diff += float(self.komi)
+            raw_scores = (raw_diff, -raw_diff)
+
+        return raw_scores
 
     def make_ai_move(self):
         """Make an AI move using MCTS."""
@@ -215,8 +305,13 @@ class GoVisualizer:
             self.game_over = True
             return
 
-        tau = 1.0 if len(self.move_history) < 10 else 1e-6
-        _, action, _ = self.mcts.run(self.state, num_sims=self.mcts_sims, temperature=tau)
+        tau = 1.0 if len(self.move_history) < self.temp_moves else 1e-6
+        _, action, root = self.mcts.run(
+            self.state,
+            num_sims=self.mcts_sims,
+            temperature=tau,
+        )
+        self.last_win_rates = self._compute_win_rates(root)
 
         self.move_history.append(action)
         self.state.apply_action(action)
@@ -231,6 +326,7 @@ class GoVisualizer:
         self.move_history = []
         self.game_over = False
         self.mcts = MCTS(self.game, self.net, device=self.device, dirichlet_eps=0.0)
+        self.last_win_rates = None
 
     def run(self):
         """Main game loop."""
@@ -295,5 +391,12 @@ def main_visualize(args):
             net.load_state_dict(payload)
     net.eval()
 
-    visualizer = GoVisualizer(net, game, board_size, device, args.mcts_sims)
+    visualizer = GoVisualizer(
+        net,
+        game,
+        board_size,
+        device,
+        args.mcts_sims,
+        komi=komi,
+    )
     visualizer.run()
