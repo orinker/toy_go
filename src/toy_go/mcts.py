@@ -76,8 +76,8 @@ class MCTS:
 
                 # Evaluate/Expand
                 if state.is_terminal():
-                    black_final = state.returns()[0]
-                    leaf_value = black_final if node.to_play == 0 else -black_final
+                    result = float(np.sign(state.returns()[0]))
+                    leaf_value = result if node.to_play == 0 else -result
                 else:
                     leaf_value = self._evaluate_and_expand(node, state)
 
