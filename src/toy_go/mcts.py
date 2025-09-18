@@ -198,9 +198,17 @@ class MCTS:
             return max(counts.items(), key=lambda kv: kv[1])[0]
         vs = np.array(list(counts.values()), dtype=np.float64)
         ks = np.array(list(counts.keys()), dtype=np.int64)
-        exps = np.power(vs, 1.0 / temperature)
-        if exps.sum() == 0:
-            probs = np.ones_like(exps) / len(exps)
+        if np.all(vs == 0):
+            probs = np.ones_like(vs) / len(vs)
         else:
-            probs = exps / exps.sum()
+            positive = vs > 0
+            log_vs = np.full_like(vs, -np.inf)
+            log_vs[positive] = np.log(vs[positive]) / temperature
+            max_log = np.max(log_vs[positive])
+            stabilized = np.exp(log_vs - max_log)
+            total = stabilized.sum()
+            if not np.isfinite(total) or total <= 0:
+                probs = np.ones_like(stabilized) / len(stabilized)
+            else:
+                probs = stabilized / total
         return int(np.random.choice(ks, p=probs))
