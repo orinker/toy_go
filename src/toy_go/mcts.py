@@ -137,7 +137,7 @@ class MCTS:
         best, best_score = None, -1e30
         for a, child in node.children.items():
             U = self.c_puct * child.prior * math.sqrt(total_N) / (1 + child.N)
-            score = child.Q + U
+            score = - child.Q + U
             if score > best_score:
                 best, best_score = a, score
         return best
