@@ -6,10 +6,10 @@ python3 main.py \
   train \
   --epochs 10000 \
   --lr 0.001 \
-  --selfplay_games_per_epoch 1 \
-  --mcts_sims 100 \
-  --updates_per_epoch 10 \
-  --batch 64 \
+  --selfplay_games_per_epoch 10 \
+  --mcts_sims 200 \
+  --updates_per_epoch 20 \
+  --batch 256 \
   --channels 32 \
   --blocks 3 \
   --board_size 5 \
