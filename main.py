@@ -61,6 +61,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_train.add_argument("--augment", action="store_true")
     p_train.add_argument("--ckpt", type=str, default="go9_az.pt")
     p_train.add_argument("--cpu", action="store_true")
+    p_train.add_argument("--profile-mcts", action="store_true")
     p_train.add_argument(
         "--continue",
         dest="resume",
@@ -78,6 +79,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_play.add_argument("--komi", type=float, default=2.5)
     p_play.add_argument("--ckpt", type=str, default="go9_az.pt")
     p_play.add_argument("--cpu", action="store_true")
+    p_play.add_argument("--profile-mcts", action="store_true")
     p_play.set_defaults(func=_run_play)
 
     p_visualize = sub.add_parser("visualize")

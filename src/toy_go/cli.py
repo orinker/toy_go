@@ -68,6 +68,7 @@ def main_train(args):
                 mcts_sims=args.mcts_sims,
                 temp_moves=args.temp_moves,
                 device=device,
+                profile=getattr(args, "profile_mcts", False),
             )
             for s in samples:
                 rb.push(s)
@@ -132,7 +133,13 @@ def main_play(args):
     net.eval()
 
     state = game.new_initial_state()
-    mcts = MCTS(game, net, device=device, dirichlet_eps=0.0)
+    mcts = MCTS(
+        game,
+        net,
+        device=device,
+        dirichlet_eps=0.0,
+        profile=getattr(args, "profile_mcts", False),
+    )
 
     print("Starting a quick self-play (greedy after first moves):")
     ply = 0

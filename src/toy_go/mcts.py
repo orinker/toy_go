@@ -1,5 +1,6 @@
 import math
 from dataclasses import dataclass
+from time import perf_counter
 
 import numpy as np
 import torch
@@ -34,6 +35,7 @@ class MCTS:
         dirichlet_alpha: float = 0.3,
         dirichlet_eps: float = 0.25,
         device: str = "cpu",
+        profile: bool = False,
     ):
         self.game = game
         self.net = net
@@ -41,6 +43,8 @@ class MCTS:
         self.dirichlet_alpha = dirichlet_alpha
         self.dirichlet_eps = dirichlet_eps
         self.device = device
+        self.profile = profile
+        self._profile_gpu_time = 0.0
         self.reset()
 
     def run(
@@ -54,6 +58,15 @@ class MCTS:
         if was_training:
             self.net.eval()
 
+        profiling = self.profile
+        if profiling:
+            self._profile_gpu_time = 0.0
+            selection_time_total = 0.0
+            eval_time_total = 0.0
+            backup_time_total = 0.0
+            sim_time_total = 0.0
+            run_start = perf_counter()
+
         try:
             if not root.is_expanded:
                 self._evaluate_and_expand(root, root_state)
@@ -61,11 +74,15 @@ class MCTS:
             self._add_root_noise(root)
 
             for _ in range(num_sims):
+                if profiling:
+                    sim_start = perf_counter()
                 state = root_state.clone()
                 path = [root]
                 node = root
 
                 # Selection
+                if profiling:
+                    selection_start = perf_counter()
                 while node.is_expanded and not state.is_terminal():
                     a = self._select_action(node)
                     state.apply_action(a)
@@ -73,23 +90,55 @@ class MCTS:
                         node.children[a] = Node(prior=1e-8, to_play=1 - node.to_play)
                     node = node.children[a]
                     path.append(node)
+                if profiling:
+                    selection_time_total += perf_counter() - selection_start
 
                 # Evaluate/Expand
+                if profiling:
+                    eval_start = perf_counter()
                 if state.is_terminal():
                     result = float(np.sign(state.returns()[0]))
                     leaf_value = result if node.to_play == 0 else -result
                 else:
                     leaf_value = self._evaluate_and_expand(node, state)
+                if profiling:
+                    eval_time_total += perf_counter() - eval_start
 
                 # Backup
+                if profiling:
+                    backup_start = perf_counter()
                 for n in reversed(path):
                     n.N += 1
                     n.W += leaf_value
                     n.Q = n.W / n.N
                     leaf_value = -leaf_value
+                if profiling:
+                    backup_time_total += perf_counter() - backup_start
+
+                if profiling:
+                    sim_time_total += perf_counter() - sim_start
 
             counts = {a: child.N for a, child in root.children.items()}
             chosen = self._sample_action_from_counts(counts, temperature)
+
+            if profiling and num_sims > 0:
+                total_time = perf_counter() - run_start
+                total_time = max(total_time, 1e-9)
+                avg_sim = sim_time_total / num_sims
+                selection_pct = (selection_time_total / total_time) * 100.0
+                eval_pct = (eval_time_total / total_time) * 100.0
+                backup_pct = (backup_time_total / total_time) * 100.0
+                gpu_pct = (self._profile_gpu_time / total_time) * 100.0
+                print(
+                    "[MCTS profile]"
+                    f" sims={num_sims}"
+                    f" total={total_time:.4f}s"
+                    f" avg_sim={avg_sim:.6f}s"
+                    f" selection={selection_time_total:.4f}s ({selection_pct:.1f}%)"
+                    f" eval={eval_time_total:.4f}s ({eval_pct:.1f}%)"
+                    f" backup={backup_time_total:.4f}s ({backup_pct:.1f}%)"
+                    f" gpu_eval={self._profile_gpu_time:.4f}s ({gpu_pct:.1f}% of total)"
+                )
             return counts, chosen, root
         finally:
             if was_training:
@@ -175,8 +224,16 @@ class MCTS:
     def _policy_value(self, state) -> tuple[float, np.ndarray, list[int]]:
         planes = obs_to_planes(self.game, state)
         x = torch.from_numpy(planes[None, ...]).to(self.device)
-        with torch.no_grad():
-            logits, value = self.net(x)
+        if self.profile and self.device.startswith("cuda") and torch.cuda.is_available():
+            torch.cuda.synchronize()
+            gpu_start = perf_counter()
+            with torch.no_grad():
+                logits, value = self.net(x)
+            torch.cuda.synchronize()
+            self._profile_gpu_time += perf_counter() - gpu_start
+        else:
+            with torch.no_grad():
+                logits, value = self.net(x)
         policy_logits = logits.squeeze(0).cpu().numpy()
         value = float(value.item())
         legal = state.legal_actions()

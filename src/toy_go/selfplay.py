@@ -44,12 +44,17 @@ def mcts_policy_from_counts(
 
 
 def play_one_selfplay_game(
-    game, net: AZNet, mcts_sims: int, temp_moves: int, device: str = "cpu"
+    game,
+    net: AZNet,
+    mcts_sims: int,
+    temp_moves: int,
+    device: str = "cpu",
+    profile: bool = False,
 ) -> list[Sample]:
     """Plays one self-play game using MCTS-guided moves."""
     state = game.new_initial_state()
     # Board size not needed here, keep minimal
-    mcts = MCTS(game, net, device=device)
+    mcts = MCTS(game, net, device=device, profile=profile)
 
     traj: list[tuple[np.ndarray, np.ndarray, int]] = []  # (planes, pi, current_player)
     ply = 0
