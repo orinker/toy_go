@@ -57,6 +57,7 @@ class GoVisualizer:
 
         self.state = game.new_initial_state()
         self.move_history = []
+        self.win_rate_history: list[tuple[float, float] | None] = []
         self.paused = False
         self.game_over = False
         self.auto_play_delay = 1000
@@ -66,6 +67,7 @@ class GoVisualizer:
         self.controls_help: list[str] = [
             "Controls:",
             "SPACE - Pause/Resume",
+            "B - Step back one move",
             "R - Reset game",
             "Q - Quit",
             "↑/↓ - Adjust speed",
@@ -314,6 +316,7 @@ class GoVisualizer:
         self.last_win_rates = self._compute_win_rates(root)
 
         self.move_history.append(action)
+        self.win_rate_history.append(self.last_win_rates)
         self.state.apply_action(action)
         self.mcts.advance(action)
 
@@ -324,6 +327,7 @@ class GoVisualizer:
         """Reset the game to initial state."""
         self.state = self.game.new_initial_state()
         self.move_history = []
+        self.win_rate_history = []
         self.game_over = False
         self.mcts = MCTS(self.game, self.net, device=self.device, dirichlet_eps=0.0)
         self.last_win_rates = None
@@ -339,16 +343,8 @@ class GoVisualizer:
                 if event.type == pygame.QUIT:
                     running = False
                 elif event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_q:
+                    if not self._handle_keydown(event.key):
                         running = False
-                    elif event.key == pygame.K_SPACE:
-                        self.paused = not self.paused
-                    elif event.key == pygame.K_r:
-                        self.reset_game()
-                    elif event.key == pygame.K_UP:
-                        self.auto_play_delay = min(5000, self.auto_play_delay + 100)
-                    elif event.key == pygame.K_DOWN:
-                        self.auto_play_delay = max(100, self.auto_play_delay - 100)
 
             if not self.paused and not self.game_over:
                 if current_time - self.last_move_time > self.auto_play_delay:
@@ -363,6 +359,45 @@ class GoVisualizer:
             self.clock.tick(30)
 
         pygame.quit()
+
+    def _handle_keydown(self, key: int) -> bool:
+        if key == pygame.K_q:
+            return False
+        if key == pygame.K_SPACE:
+            self.paused = not self.paused
+            return True
+        if key == pygame.K_r:
+            self.reset_game()
+            return True
+        if key == pygame.K_UP:
+            self.auto_play_delay = min(5000, self.auto_play_delay + 100)
+            return True
+        if key == pygame.K_DOWN:
+            self.auto_play_delay = max(100, self.auto_play_delay - 100)
+            return True
+        if key == pygame.K_b:
+            self._undo_last_moves(1)
+            return True
+        return True
+
+    def _undo_last_moves(self, num_moves: int) -> None:
+        if num_moves <= 0 or not self.move_history:
+            return
+        count = min(num_moves, len(self.move_history))
+        del self.move_history[-count:]
+        del self.win_rate_history[-count:]
+        self.paused = True
+        self._rebuild_state_from_history()
+
+    def _rebuild_state_from_history(self) -> None:
+        self.state = self.game.new_initial_state()
+        self.mcts = MCTS(self.game, self.net, device=self.device, dirichlet_eps=0.0)
+        for action in self.move_history:
+            self.state.apply_action(action)
+            self.mcts.advance(action)
+        self.game_over = self.state.is_terminal()
+        self.last_win_rates = self.win_rate_history[-1] if self.win_rate_history else None
+        self.last_move_time = pygame.time.get_ticks()
 
 
 def main_visualize(args):

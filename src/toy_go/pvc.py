@@ -39,6 +39,7 @@ class GoPvCVisualizer(GoVisualizer):
             "Controls:",
             "Left click - Play stone",
             "P - Pass",
+            "B - Undo last move",
             "R - Reset game",
             "Q - Quit",
         ]
@@ -58,7 +59,8 @@ class GoPvCVisualizer(GoVisualizer):
                 if event.type == pygame.QUIT:
                     running = False
                 elif event.type == pygame.KEYDOWN:
-                    running = self._handle_keydown(event.key)
+                    if not self._handle_keydown(event.key):
+                        running = False
                 elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                     self._handle_click(event.pos)
 
@@ -74,15 +76,13 @@ class GoPvCVisualizer(GoVisualizer):
         pygame.quit()
 
     def _handle_keydown(self, key: int) -> bool:
-        if key == pygame.K_q:
-            return False
-        if key == pygame.K_r:
-            self.reset_game()
-            return True
         if key == pygame.K_p:
             self._handle_pass()
             return True
-        return True
+        if key == pygame.K_b:
+            self._undo_last_human_move()
+            return True
+        return super()._handle_keydown(key)
 
     def _handle_click(self, pos: tuple[int, int]) -> None:
         if self.game_over or self.state.current_player() != self.human_player:
@@ -109,10 +109,29 @@ class GoPvCVisualizer(GoVisualizer):
 
     def _apply_human_action(self, action: int) -> None:
         self.move_history.append(action)
+        self.win_rate_history.append(None)
+        self.last_win_rates = None
         self.state.apply_action(action)
         self.mcts.advance(action)
         if self.state.is_terminal():
             self.game_over = True
+
+    def _undo_last_human_move(self) -> None:
+        if not self.move_history:
+            return
+        state = self.game.new_initial_state()
+        players: list[int] = []
+        for action in self.move_history:
+            players.append(state.current_player())
+            state.apply_action(action)
+
+        for idx in range(len(players) - 1, -1, -1):
+            if players[idx] == self.human_player:
+                del self.move_history[idx:]
+                del self.win_rate_history[idx:]
+                self.game_over = False
+                self._rebuild_state_from_history()
+                return
 
     def _pixel_to_board(self, pos: tuple[int, int]) -> tuple[int, int] | None:
         x, y = pos
